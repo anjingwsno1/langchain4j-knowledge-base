@@ -1,0 +1,21 @@
+###
+POST http://localhost:9999/knowledge-base/saveOrUpdate
+Content-Type: application/json
+
+{
+  "title": "苏轼",
+  "remark": "这是苏轼的个人传记",
+  "isPublic": true
+}
+
+###
+POST http://localhost:9999/knowledge-base/upload/52a238ef7da04773b86f90b1502ef012
+Content-Type: multipart/form-data; boundary=WebAppBoundary
+
+--WebAppBoundary
+Content-Disposition: form-data; name="file"; filename="sushi.txt"
+Content-Type: multipart/form-data
+
+#文件地址(与.http文件同目录同级或者后续二进制流)
+< sushi.txt
+
