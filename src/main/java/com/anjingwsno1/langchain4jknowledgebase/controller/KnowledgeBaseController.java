@@ -31,6 +31,14 @@ public class KnowledgeBaseController {
         return knowledgeBaseService.saveOrUpdate(kbEditReq);
     }
 
+    @GetMapping("/info/{uuid}")
+    public KnowledgeBase info(@PathVariable String uuid) {
+        return knowledgeBaseService.lambdaQuery()
+                .eq(KnowledgeBase::getUuid, uuid)
+                .eq(KnowledgeBase::getIsDeleted, false)
+                .one();
+    }
+
     @PostMapping(path = "/upload/{uuid}", headers = "content-type=multipart/form-data", produces = MediaType.APPLICATION_JSON_VALUE)
     public File upload(@PathVariable String uuid, @RequestParam(value = "embedding", defaultValue = "true") Boolean embedding, @RequestParam("file") MultipartFile doc) {
         //通过FileSystemDocumentLoader加载本地文件到内存中
