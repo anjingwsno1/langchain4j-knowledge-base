@@ -5,23 +5,25 @@ import com.anjingwsno1.langchain4jknowledgebase.common.constant.Constant;
 import com.anjingwsno1.langchain4jknowledgebase.common.constant.RedisKeyConstant;
 import com.anjingwsno1.langchain4jknowledgebase.common.dto.KbEditReq;
 import com.anjingwsno1.langchain4jknowledgebase.common.exception.BaseException;
-import com.anjingwsno1.langchain4jknowledgebase.entity.File;
-import com.anjingwsno1.langchain4jknowledgebase.entity.KnowledgeBase;
-import com.anjingwsno1.langchain4jknowledgebase.entity.KnowledgeBaseItem;
-import com.anjingwsno1.langchain4jknowledgebase.entity.User;
+import com.anjingwsno1.langchain4jknowledgebase.entity.*;
 import com.anjingwsno1.langchain4jknowledgebase.mapper.KnowledgeBaseMapper;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.baomidou.mybatisplus.extension.toolkit.ChainWrappers;
+import com.google.common.collect.ImmutableMap;
 import dev.langchain4j.data.document.Document;
 import dev.langchain4j.data.document.parser.TextDocumentParser;
+import dev.langchain4j.data.message.AiMessage;
+import dev.langchain4j.model.output.Response;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
+import org.apache.commons.lang3.tuple.Pair;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.util.Map;
 import java.util.UUID;
 
 import static com.anjingwsno1.langchain4jknowledgebase.common.enums.ErrorEnum.*;
@@ -42,6 +44,9 @@ public class KnowledgeBaseService extends ServiceImpl<KnowledgeBaseMapper, Knowl
 
     @Resource
     StringRedisTemplate stringRedisTemplate;
+
+    @Resource
+    KnowledgeBaseQaRecordService  knowledgeBaseQaRecordService;
 
     public KnowledgeBase saveOrUpdate(KbEditReq kbEditReq) {
         String uuid = kbEditReq.getUuid();
@@ -118,6 +123,25 @@ public class KnowledgeBaseService extends ServiceImpl<KnowledgeBaseMapper, Knowl
 
     public void updateStatistic(String kbUuid) {
         stringRedisTemplate.opsForSet().add(RedisKeyConstant.KB_STATISTIC_RECALCULATE_SIGNAL, kbUuid);
+    }
+
+    public KnowledgeBaseQaRecord ask(String kbUuid, String question, String modelName) {
+        KnowledgeBase knowledgeBase = getOrThrow(kbUuid);
+        Map<String, String> metadataCond = ImmutableMap.of(Constant.EmbeddingMetadataKey.KB_UUID, kbUuid);
+        Pair<String, Response<AiMessage>> responsePair = ragService.retrieveAndAsk(metadataCond, question, modelName);
+
+        Response<AiMessage> ar = responsePair.getRight();
+        int inputTokenCount = ar.tokenUsage().inputTokenCount();
+        int outputTokenCount = ar.tokenUsage().outputTokenCount();
+        User user = MockUser.getCurrentUser();
+        return knowledgeBaseQaRecordService.createNewRecord(user, knowledgeBase, question, responsePair.getLeft(), inputTokenCount, ar.content().text(), outputTokenCount, modelName);
+    }
+
+    public KnowledgeBase getOrThrow(String kbUuid) {
+        return ChainWrappers.lambdaQueryChain(baseMapper)
+                .eq(KnowledgeBase::getUuid, kbUuid)
+                .eq(KnowledgeBase::getIsDeleted, false)
+                .oneOpt().orElseThrow(() -> new BaseException(A_DATA_NOT_FOUND));
     }
 
     private void checkPrivilege(Long kbId, String kbUuid) {

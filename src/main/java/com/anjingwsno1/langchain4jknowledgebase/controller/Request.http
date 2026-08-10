@@ -13,7 +13,7 @@ GET http://localhost:9999/knowledge-base/info/52a238ef7da04773b86f90b1502ef012
 Content-Type: application/json
 
 ###
-GET http://localhost:9999/knowledge-base-item/info/e370aa6696ac44a4b687f2070af682ea
+GET http://localhost:9999/knowledge-base-item/info/e1f9122262284818839a7c2dd6a6953e
 Content-Type: application/json
 
 ###
@@ -27,3 +27,15 @@ Content-Type: multipart/form-data
 #文件地址(与.http文件同目录同级或者后续二进制流)
 < sushi.txt
 
+###
+GET http://localhost:9999/knowledge-base-embedding/list/e1f9122262284818839a7c2dd6a6953e?currentPage=1&pageSize=10
+Content-Type: application/json
+
+###
+POST http://localhost:9999/knowledge-base/qa/ask/52a238ef7da04773b86f90b1502ef012
+Content-Type: application/json
+
+{
+  "question": "苏轼是谁？",
+  "modelName": "gpt-4o-mini"
+}

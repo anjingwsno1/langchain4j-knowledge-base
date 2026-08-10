@@ -1,21 +1,36 @@
 package com.anjingwsno1.langchain4jknowledgebase.service;
 
+import com.anjingwsno1.langchain4jknowledgebase.common.constant.Constant;
 import com.anjingwsno1.langchain4jknowledgebase.common.utils.CustomPgVectorEmbeddingStore;
+import com.anjingwsno1.langchain4jknowledgebase.helper.LLMContext;
 import dev.langchain4j.data.document.Document;
 import dev.langchain4j.data.document.DocumentSplitter;
 import dev.langchain4j.data.document.splitter.DocumentSplitters;
+import dev.langchain4j.data.embedding.Embedding;
+import dev.langchain4j.data.message.AiMessage;
 import dev.langchain4j.data.segment.TextSegment;
 import dev.langchain4j.model.embedding.AllMiniLmL6V2EmbeddingModel;
 import dev.langchain4j.model.embedding.EmbeddingModel;
+import dev.langchain4j.model.input.Prompt;
 import dev.langchain4j.model.openai.OpenAiTokenizer;
+import dev.langchain4j.model.output.Response;
+import dev.langchain4j.rag.content.retriever.ContentRetriever;
+import dev.langchain4j.rag.content.retriever.EmbeddingStoreContentRetriever;
+import dev.langchain4j.store.embedding.EmbeddingMatch;
 import dev.langchain4j.store.embedding.EmbeddingStore;
 import dev.langchain4j.store.embedding.EmbeddingStoreIngestor;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.StringUtils;
+import org.apache.commons.lang3.tuple.ImmutablePair;
+import org.apache.commons.lang3.tuple.Pair;
 
+import java.util.List;
+import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import static dev.langchain4j.model.openai.OpenAiModelName.GPT_3_5_TURBO;
+import static java.util.stream.Collectors.joining;
 
 @Slf4j
 public class RAGService {
@@ -89,5 +104,45 @@ public class RAGService {
                 .embeddingStore(embeddingStore)
                 .build();
         embeddingStoreIngestor.ingest(document);
+    }
+
+    public Pair<String, Response<AiMessage>> retrieveAndAsk(Map<String, String> metadataCond, String question, String modelName) {
+
+        Prompt prompt = retrieveAndCreatePrompt(metadataCond, question);
+        if (null == prompt) {
+            return null;
+        }
+        Response<AiMessage> response = new LLMContext(modelName).getLLMService().chat(prompt.toUserMessage());
+        return new ImmutablePair<>(prompt.text(), response);
+    }
+
+    public Prompt retrieveAndCreatePrompt(Map<String, String> metadataCond, String question) {
+        // Embed the question
+        Embedding questionEmbedding = embeddingModel.embed(question).content();
+
+        // Find relevant embeddings in embedding store by semantic similarity
+        // You can play with parameters below to find a sweet spot for your specific use case
+        int maxResults = 3;
+        double minScore = 0.6;
+        List<EmbeddingMatch<TextSegment>> relevantEmbeddings = ((CustomPgVectorEmbeddingStore) embeddingStore).findRelevantByMetadata(metadataCond, questionEmbedding, maxResults, minScore);
+
+        // Create a prompt that includes question and relevant embeddings
+        String information = relevantEmbeddings.stream()
+                .map(match -> match.embedded().text())
+                .collect(joining("\n\n"));
+
+        if (StringUtils.isBlank(information)) {
+            return null;
+        }
+        return Constant.PROMPT_TEMPLATE.apply(Map.of("question", question, "information", Matcher.quoteReplacement(information)));
+    }
+
+    public ContentRetriever buildContentRetriever() {
+        return EmbeddingStoreContentRetriever.builder()
+                .embeddingStore(embeddingStore)
+                .embeddingModel(embeddingModel)
+                .maxResults(MAX_RESULTS)
+                .minScore(MIN_SCORE)
+                .build();
     }
 }
