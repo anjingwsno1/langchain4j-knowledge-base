@@ -40,4 +40,9 @@ public class KnowledgeBaseQAController {
     public Page<KbQaRecordDto> list(String kbUuid, String keyword, @NotNull @Min(1) Integer currentPage, @NotNull @Min(10) Integer pageSize) {
         return knowledgeBaseQaRecordService.search(kbUuid, keyword, currentPage, pageSize);
     }
+
+    @PostMapping("/record/del/{uuid}")
+    public boolean recordDel(@PathVariable String uuid) {
+        return knowledgeBaseQaRecordService.softDelete(uuid);
+    }
 }
