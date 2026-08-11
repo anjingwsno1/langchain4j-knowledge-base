@@ -1,12 +1,17 @@
 package com.anjingwsno1.langchain4jknowledgebase.service;
 
+import com.anjingwsno1.langchain4jknowledgebase.common.base.MockUser;
+import com.anjingwsno1.langchain4jknowledgebase.common.dto.KbQaRecordDto;
+import com.anjingwsno1.langchain4jknowledgebase.common.utils.MPPageUtil;
 import com.anjingwsno1.langchain4jknowledgebase.entity.KnowledgeBase;
 import com.anjingwsno1.langchain4jknowledgebase.entity.KnowledgeBaseQaRecord;
 import com.anjingwsno1.langchain4jknowledgebase.entity.User;
 import com.anjingwsno1.langchain4jknowledgebase.mapper.KnowledgeBaseQaRecordMapper;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.StringUtils;
 import org.springframework.stereotype.Service;
 
 import java.util.UUID;
@@ -31,5 +36,24 @@ public class KnowledgeBaseQaRecordService extends ServiceImpl<KnowledgeBaseQaRec
         LambdaQueryWrapper<KnowledgeBaseQaRecord> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(KnowledgeBaseQaRecord::getUuid, uuid);
         return baseMapper.selectOne(wrapper);
+    }
+
+    public Page<KbQaRecordDto> search(String kbUuid, String keyword, Integer currentPage, Integer pageSize) {
+        LambdaQueryWrapper<KnowledgeBaseQaRecord> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(KnowledgeBaseQaRecord::getKbUuid, kbUuid);
+        wrapper.eq(KnowledgeBaseQaRecord::getIsDeleted, false);
+        wrapper.eq(KnowledgeBaseQaRecord::getUserId, MockUser.getCurrentUser().getId());
+        if (StringUtils.isNotBlank(keyword)) {
+            wrapper.like(KnowledgeBaseQaRecord::getQuestion, keyword);
+        }
+        wrapper.orderByDesc(KnowledgeBaseQaRecord::getUpdateTime);
+        Page<KnowledgeBaseQaRecord> page = baseMapper.selectPage(new Page<>(currentPage, pageSize), wrapper);
+
+        Page<KbQaRecordDto> result = new Page<>();
+        MPPageUtil.convertToPage(page, result, KbQaRecordDto.class, (t1, t2) -> {
+            t2.setAiModelPlatform(t1.getAiModelId().toString());
+            return t2;
+        });
+        return result;
     }
 }
