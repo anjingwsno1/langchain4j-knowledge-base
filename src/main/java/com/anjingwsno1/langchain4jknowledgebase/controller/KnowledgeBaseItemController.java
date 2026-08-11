@@ -4,10 +4,7 @@ import com.anjingwsno1.langchain4jknowledgebase.entity.KnowledgeBaseItem;
 import com.anjingwsno1.langchain4jknowledgebase.service.KnowledgeBaseItemService;
 import jakarta.annotation.Resource;
 import org.springframework.validation.annotation.Validated;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/knowledge-base-item")
@@ -22,5 +19,10 @@ public class KnowledgeBaseItemController {
                 .eq(KnowledgeBaseItem::getUuid, uuid)
                 .eq(KnowledgeBaseItem::getIsDeleted, false)
                 .one();
+    }
+
+    @PostMapping("/del/{uuid}")
+    public boolean softDelete(@PathVariable String uuid) {
+        return knowledgeBaseItemService.softDelete(uuid);
     }
 }

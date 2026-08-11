@@ -39,3 +39,12 @@ Content-Type: application/json
   "question": "苏轼是谁？",
   "modelName": "gpt-4o-mini"
 }
+
+###
+POST http://localhost:9999/knowledge-base/qa/process/52a238ef7da04773b86f90b1502ef012
+Content-Type: application/json
+
+{
+  "question": "苏轼是谁？",
+  "modelName": "gpt-4o-mini"
+}

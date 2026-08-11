@@ -4,8 +4,11 @@ import com.anjingwsno1.langchain4jknowledgebase.common.base.MockUser;
 import com.anjingwsno1.langchain4jknowledgebase.common.constant.Constant;
 import com.anjingwsno1.langchain4jknowledgebase.common.constant.RedisKeyConstant;
 import com.anjingwsno1.langchain4jknowledgebase.common.dto.KbEditReq;
+import com.anjingwsno1.langchain4jknowledgebase.common.dto.QAReq;
 import com.anjingwsno1.langchain4jknowledgebase.common.exception.BaseException;
+import com.anjingwsno1.langchain4jknowledgebase.common.vo.SseAskParams;
 import com.anjingwsno1.langchain4jknowledgebase.entity.*;
+import com.anjingwsno1.langchain4jknowledgebase.helper.SseEmitterWrapper;
 import com.anjingwsno1.langchain4jknowledgebase.mapper.KnowledgeBaseMapper;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
@@ -14,14 +17,18 @@ import com.google.common.collect.ImmutableMap;
 import dev.langchain4j.data.document.Document;
 import dev.langchain4j.data.document.parser.TextDocumentParser;
 import dev.langchain4j.data.message.AiMessage;
+import dev.langchain4j.model.input.Prompt;
 import dev.langchain4j.model.output.Response;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.tuple.Pair;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.util.Map;
 import java.util.UUID;
@@ -33,6 +40,10 @@ import static dev.langchain4j.data.document.loader.FileSystemDocumentLoader.load
 @Slf4j
 @Service
 public class KnowledgeBaseService extends ServiceImpl<KnowledgeBaseMapper, KnowledgeBase> {
+    @Lazy
+    @Resource
+    private KnowledgeBaseService _this;
+
     @Resource
     private FileService fileService;
 
@@ -47,6 +58,9 @@ public class KnowledgeBaseService extends ServiceImpl<KnowledgeBaseMapper, Knowl
 
     @Resource
     KnowledgeBaseQaRecordService  knowledgeBaseQaRecordService;
+
+    @Resource
+    private SseEmitterWrapper sseEmitterWrapper;
 
     public KnowledgeBase saveOrUpdate(KbEditReq kbEditReq) {
         String uuid = kbEditReq.getUuid();
@@ -175,5 +189,37 @@ public class KnowledgeBaseService extends ServiceImpl<KnowledgeBaseMapper, Knowl
                 .eq(KnowledgeBase::getUuid, uuid)
                 .set(KnowledgeBase::getIsDeleted, true)
                 .update();
+    }
+
+    public SseEmitter sseAsk(String kbUuid, QAReq req) {
+        SseEmitter sseEmitter = new SseEmitter();
+        User user = MockUser.getCurrentUser();
+        if (!sseEmitterWrapper.checkOrComplete(user, sseEmitter)) {
+            return sseEmitter;
+        }
+        sseEmitterWrapper.startSse(user, sseEmitter);
+        _this.retrieveAndPushToLLM(user, sseEmitter, kbUuid, req);
+        return sseEmitter;
+    }
+
+    @Async
+    public void retrieveAndPushToLLM(User user, SseEmitter sseEmitter, String kbUuid, QAReq req) {
+        log.info("retrieveAndPushToLLM,kbUuid:{},userId:{}", kbUuid, user.getId());
+        KnowledgeBase knowledgeBase = getOrThrow(kbUuid);
+        Map<String, String> metadataCond = ImmutableMap.of(Constant.EmbeddingMetadataKey.KB_UUID, kbUuid);
+        Prompt prompt = ragService.retrieveAndCreatePrompt(metadataCond, req.getQuestion());
+        if (null == prompt) {
+            sseEmitterWrapper.sendAndComplete(user.getId(), sseEmitter, B_NO_ANSWER.getInfo());
+            return;
+        }
+        String promptText = prompt.text();
+        SseAskParams sseAskParams = new SseAskParams();
+        sseAskParams.setSystemMessage(StringUtils.EMPTY);
+        sseAskParams.setSseEmitter(sseEmitter);
+        sseAskParams.setUserMessage(promptText);
+        sseAskParams.setModelName(req.getModelName());
+        sseEmitterWrapper.processAndPushToModel(user, sseAskParams, (response, promptMeta, answerMeta) -> {
+            knowledgeBaseQaRecordService.createNewRecord(user, knowledgeBase, req.getQuestion(), promptText, promptMeta.getTokens(), response, answerMeta.getTokens(), req.getModelName());
+        });
     }
 }

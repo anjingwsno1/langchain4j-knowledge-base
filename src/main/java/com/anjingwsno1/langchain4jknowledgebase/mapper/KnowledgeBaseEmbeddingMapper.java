@@ -9,4 +9,5 @@ import org.apache.ibatis.annotations.Param;
 @Mapper
 public interface KnowledgeBaseEmbeddingMapper extends BaseMapper<KnowledgeBaseEmbedding> {
     Page<KnowledgeBaseEmbedding> selectByItemUuid(Page<KnowledgeBaseEmbedding> page, @Param("kbItemUuid") String uuid);
+    boolean deleteByItemUuid(@Param("kbItemUuid") String uuid);
 }

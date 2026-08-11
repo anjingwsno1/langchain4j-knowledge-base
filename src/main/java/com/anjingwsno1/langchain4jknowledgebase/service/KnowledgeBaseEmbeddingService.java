@@ -21,4 +21,8 @@ public class KnowledgeBaseEmbeddingService extends ServiceImpl<KnowledgeBaseEmbe
         });
         return result;
     }
+
+    public boolean deleteByItemUuid(String kbItemUuid) {
+        return baseMapper.deleteByItemUuid(kbItemUuid);
+    }
 }
