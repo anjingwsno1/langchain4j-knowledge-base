@@ -44,4 +44,9 @@ public class KnowledgeBaseController {
         //通过FileSystemDocumentLoader加载本地文件到内存中
         return knowledgeBaseService.uploadDoc(uuid, embedding, doc);
     }
+
+    @PostMapping("/del/{uuid}")
+    public boolean softDelete(@PathVariable String uuid) {
+        return knowledgeBaseService.softDelete(uuid);
+    }
 }

@@ -28,7 +28,7 @@ Content-Type: multipart/form-data
 < sushi.txt
 
 ###
-GET http://localhost:9999/knowledge-base-embedding/list/e1f9122262284818839a7c2dd6a6953e?currentPage=1&pageSize=10
+GET http://localhost:9999/knowledge-base-embedding/list/e370aa6696ac44a4b687f2070af682ea?currentPage=1&pageSize=10
 Content-Type: application/json
 
 ###

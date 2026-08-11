@@ -168,4 +168,12 @@ public class KnowledgeBaseService extends ServiceImpl<KnowledgeBaseMapper, Knowl
             throw new BaseException(A_USER_NOT_AUTH);
         }
     }
+
+    public boolean softDelete(String uuid) {
+        checkPrivilege(null, uuid);
+        return ChainWrappers.lambdaUpdateChain(baseMapper)
+                .eq(KnowledgeBase::getUuid, uuid)
+                .set(KnowledgeBase::getIsDeleted, true)
+                .update();
+    }
 }
